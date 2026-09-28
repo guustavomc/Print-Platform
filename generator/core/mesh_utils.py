@@ -1,26 +1,49 @@
-import numpy as np
 import trimesh
-from typing import List, Tuple
 
-def triangles_to_trimesh(triangles: List[Tuple[np.ndarray, np.ndarray, np.ndarray]]) -> trimesh.Trimesh:
-    """Converte uma lista de triângulos [(v0, v1, v2), ...] em uma malha Trimesh indexada."""
-    """Funde vértices compartilhados para garantir conectividade manifold."""
+from core.base import GenerationResult
 
-    if not triangles:
-        raise ValueError("A lista de triângulos não pode estar vazia.")
+# Volume máximo de impressão (X, Y, Z) em mm; ajuste para a sua impressora
+BED_SIZE_MM = (256.0, 256.0, 256.0)
 
-    # Converte para array (N, 3, 3) -> N triângulos com 3 vértices (X, Y, Z)
-    tri_array = np.array(triangles, dtype=np.float64)
-    num_triangles = len(tri_array)
 
-    vertices = tri_array.reshape(-1, 3)
-    faces = np.arange(num_triangles * 3).reshape(-1, 3)
+class MeshValidationError(ValueError):
+    """Malha gerada não é imprimível."""
 
-    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
-    
-    # Funde vértices adjacentes para fechar a casca da malha
-    mesh.merge_vertices()
-    
-    # Corrige orientação de normais
-    mesh.fix_normals()
-    return mesh
+
+def validate(mesh: trimesh.Trimesh, bed_size: tuple[float, float, float] = BED_SIZE_MM) -> None:
+    """Garante que a malha é fechada, tem volume positivo e cabe na mesa."""
+    errors = []
+    if not mesh.is_watertight:
+        errors.append("malha não é fechada (watertight)")
+    if not mesh.is_winding_consistent:
+        errors.append("normais inconsistentes")
+    if mesh.volume <= 0:
+        errors.append(f"volume inválido: {mesh.volume:.2f} mm³")
+    for axis, size, limit in zip("XYZ", mesh.extents, bed_size):
+        if size > limit:
+            errors.append(f"eixo {axis} excede a mesa: {size:.1f} > {limit:.1f} mm")
+    if errors:
+        raise MeshValidationError("; ".join(errors))
+
+
+def export_stl(mesh: trimesh.Trimesh) -> bytes:
+    """STL binário para o fatiador."""
+    return mesh.export(file_type="stl")
+
+
+def export_glb(mesh: trimesh.Trimesh) -> bytes:
+    """GLB para o preview 3D na web."""
+    return mesh.export(file_type="glb")
+
+
+def build_result(mesh: trimesh.Trimesh) -> GenerationResult:
+    """Valida a malha e monta o GenerationResult padrão."""
+    validate(mesh)
+    x, y, z = (float(v) for v in mesh.extents)
+    return GenerationResult(
+        mesh=mesh,
+        stl_bytes=export_stl(mesh),
+        volume_cm3=mesh.volume / 1000.0,
+        dimensions_mm=(x, y, z),
+        is_watertight=mesh.is_watertight,
+    )

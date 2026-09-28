@@ -1,9 +1,10 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from abc import abstractmethod
-from pydantic import BaseModel
-from typing import Tuple, Dict, Any
+from typing import Any
 
 import trimesh
+from pydantic import BaseModel, ConfigDict
+
 
 @dataclass
 class GenerationResult:
@@ -11,10 +12,10 @@ class GenerationResult:
     mesh: trimesh.Trimesh
     stl_bytes: bytes
     volume_cm3: float
-    dimension_mm: Tuple[float, float, float] # (largura X, profundidade Y, altura Z)
+    dimensions_mm: tuple[float, float, float]  # (largura X, profundidade Y, altura Z)
     is_watertight: bool
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "volume_cm3": round(self.volume_cm3, 2),
             "dimensions_mm": {
@@ -26,14 +27,15 @@ class GenerationResult:
             "triangle_count": len(self.mesh.faces),
         }
 
+
 class BaseProductParams(BaseModel):
     """Classe base para parâmetros de produtos paramétricos."""
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(extra="forbid")
 
-class BaseProductGenerator:
+
+class BaseProductGenerator(ABC):
     """Interface abstrata para geradores de produtos 3D."""
+
     @abstractmethod
     def generate(self, params: BaseProductParams) -> GenerationResult:
         """Recebe parâmetros validados e gera a malha 3D + STL binário."""
-        pass
