@@ -1,0 +1,28 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# 3D files / Slicer artifacts
+*.stl
+*.gcode
+*.step
+*.obj
+*.glb
+*.3mf
+output/
+temp/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
